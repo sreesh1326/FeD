@@ -1,8 +1,9 @@
 streamlit
-deepface
-opencv-python-headless
+deepface==0.0.93
+opencv-python-headless==4.8.1.78
 pillow
 pandas
 numpy
 tf-keras
 retina-face
+tensorflow==2.15.0
