@@ -6,17 +6,17 @@ import pandas as pd
 from datetime import datetime
 from PIL import Image
 from deepface import DeepFace
+import pytz
 
-# ── Config ───────────────────────────────────────────
+# ── Configuration
 KNOWN_FACES_DIR = "faces"
 ATTENDANCE_FILE = "attendance.csv"
-ROSTER_FILE     = "students.csv"          # ← NEW: pre-loaded student list
+ROSTER_FILE     = "students.csv"          
 os.makedirs(KNOWN_FACES_DIR, exist_ok=True)
 
 st.set_page_config(page_title="Face Attendance", page_icon="🎓", layout="wide")
 st.title("🎓 Face Recognition Attendance System")
 
-# ── Shared button style ──────────────────────────────
 st.markdown("""
 <style>
 div.stButton > button {
@@ -42,7 +42,6 @@ div.stButton > button:active {
 </style>
 """, unsafe_allow_html=True)
 
-# ── Roster helpers ───────────────────────────────────
 def load_roster() -> pd.DataFrame:
     """Return the student roster. Columns: Name, StudentID (optional)."""
     if os.path.exists(ROSTER_FILE):
@@ -69,8 +68,8 @@ def face_exists(name: str) -> bool:
             return True
     return False
 
-# ── Mark Attendance ──────────────────────────────────
 def mark_attendance(name: str) -> bool:
+    india    = pytz.timezone("Asia/Kolkata")
     now      = datetime.now()
     date_str = now.strftime("%Y-%m-%d")
     time_str = now.strftime("%H:%M:%S")
@@ -91,7 +90,6 @@ def mark_attendance(name: str) -> bool:
         return True
     return False
 
-# ── Recognize Face ───────────────────────────────────
 def recognize_face(snapshot_path: str):
     """
     Compare snapshot against every face image in KNOWN_FACES_DIR.
@@ -118,8 +116,8 @@ def recognize_face(snapshot_path: str):
             continue
 
     return best_match
+                             #Tabs
 
-# ── Tabs ─────────────────────────────────────────────
 tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "👥 Student Roster",
     "📸 Register Student",
@@ -142,7 +140,6 @@ with tab0:
 
     roster_df = load_roster()
 
-    # ── Manual add ──────────────────────────────────
     st.subheader("Add a Student")
     col_a, col_b = st.columns(2)
     with col_a:
@@ -164,7 +161,6 @@ with tab0:
 
     st.markdown("---")
 
-    # ── Upload roster CSV ────────────────────────────
     st.subheader("Import Roster from CSV")
     st.caption("CSV must have at least a **Name** column. A **StudentID** column is optional.")
     uploaded_roster = st.file_uploader("Upload students.csv", type=["csv"], key="roster_upload")
@@ -175,7 +171,6 @@ with tab0:
             if "Name" not in imported.columns:
                 st.error("CSV must contain a 'Name' column.")
             else:
-                # Merge — skip duplicates
                 existing_names = set(roster_df["Name"].values)
                 new_students   = imported[~imported["Name"].isin(existing_names)]
                 if "StudentID" not in new_students.columns:
@@ -192,14 +187,12 @@ with tab0:
 
     st.markdown("---")
 
-    # ── Roster table ────────────────────────────────
     st.subheader("Current Roster")
-    roster_df = load_roster()   # reload after possible changes
+    roster_df = load_roster()   
 
     if roster_df.empty:
         st.info("No students in roster yet.")
     else:
-        # Annotate with photo status
         roster_df["Photo Registered"] = roster_df["Name"].apply(
             lambda n: "✅ Yes" if face_exists(n) else "⚠️ No photo yet"
         )
@@ -212,7 +205,6 @@ with tab0:
 
         st.markdown("---")
 
-        # ── Selective Delete ─────────────────────────
         st.subheader("🗑️ Delete Selected Students")
         students_to_delete = st.multiselect(
             "Select students to remove from roster",
@@ -230,12 +222,10 @@ with tab0:
             col_del, col_cancel = st.columns([1, 3])
             with col_del:
                 if st.button(f"🗑️ Remove {len(students_to_delete)} Student(s)"):
-                    # Remove from roster
                     updated_df = load_roster()
                     updated_df = updated_df[~updated_df["Name"].isin(students_to_delete)]
                     save_roster(updated_df)
 
-                    # Optionally delete photos
                     deleted_photos = []
                     if also_delete_photos:
                         for name in students_to_delete:
@@ -264,9 +254,8 @@ with tab0:
 with tab1:
     st.header("Register a New Student")
 
-    # ── Choose from roster or type a new name ───────
     roster_names_list = roster_names()
-    use_roster        = roster_names_list  # may be empty
+    use_roster        = roster_names_list  
 
     if use_roster:
         st.info("Students already in the roster are listed below. Select one to register their photo, or type a brand-new name.")
@@ -291,7 +280,6 @@ with tab1:
         try:
             DeepFace.extract_faces(img_path=save_path, enforce_detection=True)
 
-            # Auto-add to roster if not already there
             roster_df = load_roster()
             if name not in roster_df["Name"].values:
                 new_row   = pd.DataFrame([{"Name": name, "StudentID": ""}])
@@ -315,7 +303,6 @@ with tab2:
 - Supported formats: JPG, JPEG, PNG
 """)
 
-    # ── Option 1: Upload Multiple Files ──────────────
     st.subheader("Option 1 — Upload Multiple Images")
     uploaded_files = st.file_uploader(
         "Select all student images at once",
@@ -340,7 +327,6 @@ with tab2:
                 success_count += 1
                 status.success(f"✅ Registered: {student_name}")
 
-                # Auto-add to roster
                 if student_name not in roster_df["Name"].values:
                     roster_df = pd.concat(
                         [roster_df, pd.DataFrame([{"Name": student_name, "StudentID": ""}])],
@@ -361,7 +347,6 @@ with tab2:
 
     st.markdown("---")
 
-    # ── Option 2: Local Folder Path ──────────────────
     st.subheader("Option 2 — Load from Local Folder Path")
     st.warning("⚠️ This only works when running locally (not on Streamlit Cloud)")
 
@@ -418,7 +403,6 @@ with tab2:
 
     st.markdown("---")
 
-    # ── Show Registered Students ──────────────────────
     st.subheader("👥 Currently Registered Students")
     students = [
         os.path.splitext(f)[0]
@@ -457,7 +441,6 @@ with tab3:
     if not photo_students:
         st.warning("⚠️ No student photos registered yet. Please register photos first.")
     else:
-        # Show roster vs photo coverage summary
         no_photo = [n for n in all_roster_names if not face_exists(n)]
         st.info(
             f"👥 **{len(all_roster_names)}** student(s) in roster — "
@@ -480,7 +463,6 @@ with tab3:
             os.remove(temp_path)
 
             if match:
-                # ── Check if matched student is in roster ──
                 roster_df = load_roster()
                 in_roster = match in roster_df["Name"].values
 
@@ -518,7 +500,6 @@ with tab4:
             st.info("No attendance records yet.")
             st.stop()
 
-        # ── Filter controls ──────────────────────────
         col1, col2 = st.columns(2)
         with col1:
             date_filter = st.selectbox(
@@ -539,7 +520,6 @@ with tab4:
 
         st.dataframe(filtered, use_container_width=True)
 
-        # ── Daily summary against roster ────────────
         if date_filter != "All":
             st.markdown("---")
             st.subheader(f"Attendance Summary — {date_filter}")
@@ -577,7 +557,6 @@ with tab5:
     st.header("📖 Documentation")
     st.caption("Everything you need to know about using this system.")
 
-    # ── Overview ──────────────────────────────────────
     with st.expander("🏠 Project Overview", expanded=True):
         st.markdown("""
 ### Face Recognition Attendance System
@@ -600,7 +579,6 @@ and attendance is logged instantly.
 | `attendance.csv` | Log of every marked attendance with date & time |
         """)
 
-    # ── How It Works ──────────────────────────────────
     with st.expander("⚙️ How It Works — Step by Step"):
         st.markdown("""
 ### The 4-Step Workflow
